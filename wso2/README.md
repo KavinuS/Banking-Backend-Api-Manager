@@ -59,8 +59,22 @@ Passwords are only in `~/.lhb-poc.env` (chmod 600, outside git). Production woul
 Verified after restart: `admin/admin` → rejected, new admin password → OK, 0 ERROR lines. The only warnings are about missing commercial usage-reporting files (`subscription-*.json`, `USAGE_COUNT` table), which are irrelevant to the POC.
 Note: subscriber users can log in to `/carbon` (the role includes the login permission) but have no admin menus.
 
+## P3: API publishing (verified 2026-10-13)
+- Published with `scripts/publish-api.sh` through the **Publisher REST API v4** (`/api/am/publisher/v4`) as `lhb_publisher`, using a DCR client (`/client-registration/v0.17/register`) and the password grant.
+- Scopes requested vs granted to `lhb_publisher`: `apim:api_manage` and `apim:api_import_export` were **not** granted. Only `api_create`, `api_publish`, `api_view` and `subscription_view` were. Role-based least privilege works.
+- API `LHB-Accounts` v1, id `8b618c61-2b3c-45fe-9d25-d5756ec282b2`, context `/lhb/accounts`, so the **gateway URL is `https://localhost:8243/lhb/accounts/v1/...`** (version appended).
+- Both operations were imported with auth type "Application & Application User".
+- Endpoint security: BASIC (production + sandbox). The Publisher API never returns the stored password.
+- Revision 1 deployed to the `Default` gateway (vhost `localhost`), lifecycle → **Published**.
+- ⚠️ Gateway deployment is **asynchronous** (~1–6 s after the deploy call). Calls made before that return 404 ("Message dispatched to the main sequence. Invalid URL."). The script waits for a 401 before reporting success.
+
 ## Error codes observed
-*(filled in during P5)*
+| Situation | HTTP | WSO2 code | Message |
+|---|---|---|---|
+| No `Authorization` header | 401 | 900902 | Missing Credentials |
+| HTTP (8280) on an HTTPS-only API | 403 | — | — |
+| Unknown API path on the gateway | 404 | 404 | Not Found (Status report) |
+*(rest filled in during P5)*
 
 ## Backend JWT format observed
 *(filled in during P8)*
