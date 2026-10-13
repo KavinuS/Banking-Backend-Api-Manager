@@ -1,0 +1,11 @@
+snapshots/
+*.jks
+*.p12
+*.env
+.env*
+postman/*environment*.json
+banking-backend/target/
+banking-backend/*.log
+.idea/
+.vscode/
+.DS_Store
