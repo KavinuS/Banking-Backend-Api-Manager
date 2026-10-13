@@ -21,7 +21,10 @@ if [ -x "$ROOT/banking-backend/mvnw" ]; then
   if lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
     echo "Backend already running on 8080"
   else
-    (cd "$ROOT/banking-backend" && nohup ./mvnw -q spring-boot:run > backend.log 2>&1 &)
+    # Redirect on the backgrounded command itself so no process keeps this script's stdout open.
+    nohup bash -c 'cd "$1" && exec ./mvnw -q spring-boot:run' _ "$ROOT/banking-backend" \
+      > "$ROOT/banking-backend/backend.log" 2>&1 < /dev/null &
+    disown
     echo -n "Waiting for backend"
     for _ in $(seq 1 60); do
       curl -s http://127.0.0.1:8080/actuator/health 2>/dev/null | grep -q UP && break
