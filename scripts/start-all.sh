@@ -35,5 +35,6 @@ for p in publisher devportal admin; do
   printf "%-10s %s\n" "$p" "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost:9443/$p/)"
 done
 printf "%-10s %s\n" gateway "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost:8243/)"
-printf "%-10s %s\n" backend "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/actuator/health || echo down)"
-echo "WSO2 errors in log: $(grep -c ' ERROR ' "$LOG" || true)"
+printf "%-10s %s\n" backend "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/actuator/health 2>/dev/null | grep -v '^000$' || echo down)"
+LAST_START=$(grep -n 'WSO2 Carbon started in' "$LOG" | tail -1 | cut -d: -f1)
+echo "WSO2 errors since last start: $(awk -v s="${LAST_START:-0}" 'NR>s' "$LOG" | grep -c ' ERROR ' || true)"

@@ -5,7 +5,9 @@ This file records what has actually been **observed** on this machine. It replac
 ## Installation
 - Location: `~/Downloads/wso2am-4.7.0` (`$WSO2_HOME`)
 - JDK: Temurin 21.0.12 (arm64)
-- Original config backed up: `repository/conf/deployment.toml.orig` (2026-10-13)
+- Config backups (in `repository/conf/`):
+  - `deployment.toml.orig`: pristine copy taken **before** the first start. ⚠️ **Do not restore it as is.** On first start, WSO2 4.7.0 appends a generated `[encryption] key = "…"` to `deployment.toml`. Losing that key makes encrypted data in the H2 databases unreadable.
+  - `deployment.toml.after-first-start`: includes the encryption key (taken before the admin password change). To revert, use `scripts/restore.sh` with a snapshot instead of copying files.
 - macOS quarantine attribute is present on the files, but it did **not** block startup. It was left untouched.
 
 ## First start (2026-10-13)
@@ -48,7 +50,14 @@ These **exist in 4.7.0** and change parts of the plan:
 ## Config changes log
 | Date | File | Change | Reason | Revert |
 |---|---|---|---|---|
-| — | — | none yet | — | — |
+| 2026-10-13 | `deployment.toml` (auto) | WSO2 appended `[encryption] key` on first start | Product behaviour | Never remove |
+| 2026-10-13 | `deployment.toml` `[super_admin]` | `password` changed from `admin` to the generated `LHB_ADMIN_PASS` | Internal components (Key Manager, throttling, event hub, JMS broker) use `$ref{super_admin.*}`, so it must match the user-store password | Restore Snapshot #1 or earlier |
+| 2026-10-13 | User store (via `RemoteUserStoreManagerService`) | Admin password changed. Created `lhb_publisher` (creator, publisher), `paylanka_dev`, `quickbudget_dev`, `rogue_dev` (subscriber) | Least privilege, no default credentials | Restore snapshot |
+
+Passwords are only in `~/.lhb-poc.env` (chmod 600, outside git). Production would encrypt `deployment.toml` secrets with WSO2 Secure Vault (`ciphertool.sh`). That is a panel talking point.
+
+Verified after restart: `admin/admin` → rejected, new admin password → OK, 0 ERROR lines. The only warnings are about missing commercial usage-reporting files (`subscription-*.json`, `USAGE_COUNT` table), which are irrelevant to the POC.
+Note: subscriber users can log in to `/carbon` (the role includes the login permission) but have no admin menus.
 
 ## Error codes observed
 *(filled in during P5)*
