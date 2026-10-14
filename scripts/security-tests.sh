@@ -63,6 +63,20 @@ jq -e '.maskedAccountNumber == "****1001" and (has("accountNumber") | not)' "$BO
 expect T7c "Subscribed app -> transactions"                      200 - -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001/transactions?limit=5"
 expect T12 "App with keys but NO subscription (RogueApp)"        403 900908 -H "$(bearer "$TOK_ROGUE")" "$GW/accounts/ACC-1001"
 
+echo "== Scopes / entitlements (B1)"
+TOK_ACC_ONLY=$("$ROOT/scripts/get-token.sh" PAYLANKA "accounts:read")
+TOK_NOSCOPE=$("$ROOT/scripts/get-token.sh" PAYLANKA none)
+TOK_QB=$("$ROOT/scripts/get-token.sh" QUICKBUDGET)   # asks for both; bank grants accounts:read only
+expect T6a "Token with accounts:read only -> transactions"      403 900910 -H "$(bearer "$TOK_ACC_ONLY")" "$GW/accounts/ACC-1001/transactions"
+expect T6b "Token with no API scope -> account"                 403 900910 -H "$(bearer "$TOK_NOSCOPE")" "$GW/accounts/ACC-1001"
+expect T6c "QuickBudget (not entitled) -> transactions"         403 900910 -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-2001/transactions"
+QB_SCOPE=$(jq -rR 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | .scope' <<<"$TOK_QB")
+if [ "$QB_SCOPE" = "accounts:read" ]; then
+  printf "PASS  %-5s %-58s %s\n" T6d "QuickBudget asked for transactions:read, was not granted" "[$QB_SCOPE]"; PASS=$((PASS+1))
+else
+  echo "FAIL  T6d   QuickBudget token scope is [$QB_SCOPE]"; FAIL=$((FAIL+1))
+fi
+
 echo "== Input validation & API surface"
 expect T9a "Malformed account id"                                400 INVALID_REQUEST -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/abc"
 expect T9b "Injection-style id (1;DROP)"                         400 INVALID_REQUEST -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/1%3BDROP"

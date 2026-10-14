@@ -120,5 +120,15 @@ Message for the panel: the quota is enforced cluster-wide, eventually and within
 - Tomcat access log on the backend (`banking-backend/logs/access.*.log`, unbuffered, `%{ms}T`). In Tomcat 11, `%D` is microseconds.
 - The Mac went to sleep during a test: a 15-minute time jump, then 401s. **Demo day: run under `caffeinate -di`.**
 
+## P7: Resource scopes & entitlements (verified 2026-10-14)
+- `scripts/setup-scopes.sh` creates two local scopes on LHB-Accounts v1:
+  - `accounts:read` → bound to `Internal/subscriber` → `GET /accounts/{accountId}`
+  - `transactions:read` → bound to new role **`Internal/lhb_txn_partner`** (member: `paylanka_dev` only) → `GET /accounts/{accountId}/transactions`
+- With client_credentials, WSO2 grants a requested scope **only if the app owner holds a bound role**. QuickBudget asked for both scopes and got `accounts:read` only. The bank controls entitlements, not the partner.
+- No scope requested → token scope `default` → 403 on every resource.
+- Insufficient scope → **403, code 900910**.
+- `get-token.sh` now requests both scopes by default (`none` for no scope).
+- Open gap (closed in P9): QuickBudget can still read PayLanka's account ACC-1001. Scopes limit *operations*, not *which customer's data* (BOLA).
+
 ## Backend JWT format observed
 *(filled in during P8)*
