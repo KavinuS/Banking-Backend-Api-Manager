@@ -4,6 +4,7 @@
 #   e.g. onboard-partner.sh paylanka_dev "PayLanka Wallet" PAYLANKA Unlimited
 # Creates the application, optionally subscribes it to LHB-Accounts v1, generates PRODUCTION client-credentials keys
 # and writes them to ~/.lhb-poc.env as LHB_<ENV_PREFIX>_ID / LHB_<ENV_PREFIX>_SECRET. Secrets are never printed.
+# Optional env LHB_TOKEN_EXPIRY=<seconds> sets the application access-token lifetime (used for the expiry test app).
 set -euo pipefail
 [ $# -eq 4 ] || { echo "usage: $0 <dev-user> <app-name> <ENV_PREFIX> <tier|none>" >&2; exit 1; }
 DEV_USER=$1; APP_NAME=$2; PREFIX=$3; TIER=$4
@@ -59,7 +60,9 @@ fi
 if [ -n "${!id_var:-}" ]; then
   echo "[$DEV_USER] $id_var already set; keeping existing keys"
 else
-  KEYS=$(curl -sfk "${AUTH[@]}" -d '{"keyType":"PRODUCTION","grantTypesToBeSupported":["client_credentials"],"keyManager":"Resident Key Manager","validityTime":3600}' \
+  KEY_REQ=$(jq -n --arg exp "${LHB_TOKEN_EXPIRY:-3600}" '{keyType:"PRODUCTION", grantTypesToBeSupported:["client_credentials"],
+    keyManager:"Resident Key Manager", additionalProperties:{application_access_token_expiry_time:$exp}}')
+  KEYS=$(curl -sfk "${AUTH[@]}" -d "$KEY_REQ" \
     "$D/applications/$APP_ID/generate-keys")
   LHB_NEW_ID=$(jq -r .consumerKey <<<"$KEYS") LHB_NEW_SECRET=$(jq -r .consumerSecret <<<"$KEYS") \
   LHB_PREFIX=$PREFIX LHB_ENV_FILE=$ENV_FILE python3 -I -c '

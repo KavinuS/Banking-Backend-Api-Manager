@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -39,6 +40,15 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, e) -> resolver.resolveException(req, res, null, e))
                         .accessDeniedHandler((req, res, e) -> resolver.resolveException(req, res, null, e)));
         return http.build();
+    }
+
+    /**
+     * Requests the firewall rejects (e.g. encoded ';' or '..') would otherwise be forwarded to the secured /error page
+     * and surface as a misleading 401 without a correlation ID. Route them to the standard 400 response instead.
+     */
+    @Bean
+    WebSecurityCustomizer requestRejectedHandling(@Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+        return web -> web.requestRejectedHandler((req, res, ex) -> resolver.resolveException(req, res, null, ex));
     }
 
     @Bean

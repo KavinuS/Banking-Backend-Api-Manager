@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.firewall.RequestRejectedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +29,11 @@ public class ApiExceptionHandler {
             MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
     ResponseEntity<ApiError> invalidParameter(Exception ex) {
         return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "One or more request parameters are invalid");
+    }
+
+    @ExceptionHandler(RequestRejectedException.class)
+    ResponseEntity<ApiError> rejectedRequest(RequestRejectedException ex) {
+        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Malformed request");
     }
 
     @ExceptionHandler(InvalidRequestException.class)

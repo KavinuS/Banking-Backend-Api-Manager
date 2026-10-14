@@ -68,13 +68,35 @@ Note: subscriber users can log in to `/carbon` (the role includes the login perm
 - Revision 1 deployed to the `Default` gateway (vhost `localhost`), lifecycle → **Published**.
 - ⚠️ Gateway deployment is **asynchronous** (~1–6 s after the deploy call). Calls made before that return 404 ("Message dispatched to the main sequence. Invalid URL."). The script waits for a 401 before reporting success.
 
-## Error codes observed
-| Situation | HTTP | WSO2 code | Message |
+## P4: Onboarding (verified 2026-10-14)
+- Done with `scripts/onboard-partner.sh` through the **Developer Portal REST API v3** as each developer user (scopes `apim:subscribe apim:app_manage apim:sub_manage`).
+- Apps (all fictional): `PayLanka Wallet` (paylanka_dev, subscribed, Unlimited), `QuickBudget` (quickbudget_dev, keys only, subscribes in P6), `RogueApp` (rogue_dev, keys only, never subscribed), `TokenExpiryTest` (rogue_dev, 10 s tokens, test only).
+- Keys: PRODUCTION, client_credentials only, JWT tokens. Written directly to `~/.lhb-poc.env` and never printed.
+- First authorised call through the gateway → 200 with masked data. API-driven onboarding took about 2 s end to end. The human UI path is timed separately during rehearsal.
+- Token endpoint ignores `validity_period`. Set a short lifetime via the key-generation property `application_access_token_expiry_time`.
+- Client-credentials token claims: `sub` = owner UUID, `scope` = `default` when no scope is requested.
+
+## Error codes observed (P5, verified 2026-10-14)
+| Situation | HTTP | Code | Source |
 |---|---|---|---|
-| No `Authorization` header | 401 | 900902 | Missing Credentials |
-| HTTP (8280) on an HTTPS-only API | 403 | — | — |
-| Unknown API path on the gateway | 404 | 404 | Not Found (Status report) |
-*(rest filled in during P5)*
+| No `Authorization` header | 401 | 900902 Missing Credentials | Gateway |
+| Garbage / forged-claims / corrupted-signature / expired token | 401 | 900901 Invalid Credentials | Gateway |
+| Valid token, app not subscribed | 403 | 900908 Resource forbidden (subscription validation failed) | Gateway |
+| Method not declared in API (POST) | 405 | 405 Method not allowed for given API resource | Gateway |
+| Resource not declared in API | 404 | 404 No matching resource found | Gateway |
+| HTTP 8280 on HTTPS-only API | 403 | 403 | Gateway |
+| Unknown API context | 404 | 404 Not Found (Status report) | Gateway |
+| Bad account id, `limit` > 50, inverted dates, encoded `;` | 400 | INVALID_REQUEST | Backend |
+| Unknown account | 404 | NOT_FOUND | Backend |
+| Direct backend call without the gateway credential | 401 | UNAUTHORIZED | Backend |
+
+Ordering note: an **expired** token from an unsubscribed app returns 401 (900901), not 403. Token validation runs before the subscription check.
+
+### Test-design lesson: base64url padding bits
+An RS256 signature is 342 base64url characters, and the low 4 bits of the last character are padding. Changing that character can decode to an **identical** signature (e.g. `A`→`B`), leaving the token genuinely valid. The first tamper test therefore "failed" intermittently with 200. This was verified: 200 only when the decoded bytes were identical, 401 in every other case. Fixed by forging claims (T4b) and corrupting a middle byte of the signature (T4c). After the fix: 10 consecutive green runs.
+
+### Backend fix found by P5
+`/accounts/1%3BDROP` was rejected by Spring Security's firewall and forwarded to the secured `/error` page, which surfaced as a misleading 401 without a correlation ID. A `requestRejectedHandler` now returns 400 INVALID_REQUEST with a correlation ID (unit-tested).
 
 ## Backend JWT format observed
 *(filled in during P8)*

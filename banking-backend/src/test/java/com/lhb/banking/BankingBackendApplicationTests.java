@@ -7,6 +7,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.net.URI;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -72,6 +74,14 @@ class BankingBackendApplicationTests {
         mvc.perform(asGateway(get("/accounts/1;DROP")))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string(not(containsString("DROP"))));
+    }
+
+    @Test
+    void firewallRejectedPathIsBadRequestWithCorrelationId() throws Exception {
+        mvc.perform(asGateway(get(URI.create("/accounts/1%3BDROP"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.correlationId", notNullValue()));
     }
 
     @Test
