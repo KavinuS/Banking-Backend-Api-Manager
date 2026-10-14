@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,11 +14,19 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.interfaces.RSAPublicKey;
+import java.time.Clock;
+
 /**
- * Stage A trust boundary: only the WSO2 gateway knows the endpoint credential, and the server listens on loopback.
- * Stage B adds verification of the gateway-signed backend JWT on top of this.
+ * Trust boundary: loopback binding + Basic endpoint credential (Stage A) + gateway-signed backend JWT that identifies
+ * the calling application (Stage B). A request must pass all three to reach a controller.
  */
 @Configuration
 public class SecurityConfig {
@@ -25,7 +34,7 @@ public class SecurityConfig {
     private static final int MIN_PASSWORD_LENGTH = 16;
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http,
+    SecurityFilterChain securityFilterChain(HttpSecurity http, GatewayJwtVerifier jwtVerifier,
                                             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver)
             throws Exception {
         http
@@ -38,7 +47,9 @@ public class SecurityConfig {
                         (req, res, ex) -> resolver.resolveException(req, res, null, ex)))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> resolver.resolveException(req, res, null, e))
-                        .accessDeniedHandler((req, res, e) -> resolver.resolveException(req, res, null, e)));
+                        .accessDeniedHandler((req, res, e) -> resolver.resolveException(req, res, null, e)))
+                // Runs only once the Basic credential has been authorized.
+                .addFilterAfter(new GatewayJwtFilter(jwtVerifier, resolver), AuthorizationFilter.class);
         return http.build();
     }
 
@@ -49,6 +60,20 @@ public class SecurityConfig {
     @Bean
     WebSecurityCustomizer requestRejectedHandling(@Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
         return web -> web.requestRejectedHandler((req, res, ex) -> resolver.resolveException(req, res, null, ex));
+    }
+
+    @Bean
+    GatewayJwtVerifier gatewayJwtVerifier(RSAPublicKey gatewaySigningKey) {
+        return new GatewayJwtVerifier(gatewaySigningKey, Clock.systemUTC());
+    }
+
+    /** Public certificate only (exported from WSO2's wso2carbon keystore); the private key never leaves WSO2. */
+    @Bean
+    RSAPublicKey gatewaySigningKey(@Value("${lhb.gateway.jwt.certificate}") Resource certificate)
+            throws IOException, CertificateException {
+        try (InputStream in = certificate.getInputStream()) {
+            return (RSAPublicKey) CertificateFactory.getInstance("X.509").generateCertificate(in).getPublicKey();
+        }
     }
 
     @Bean

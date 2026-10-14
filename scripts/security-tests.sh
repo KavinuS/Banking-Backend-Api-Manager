@@ -91,6 +91,11 @@ echo "== Gateway bypass (direct to backend)"
 expect T10a "Direct call, no credential"                         401 UNAUTHORIZED "$BE/accounts/ACC-1001"
 expect T10b "Direct call, wrong credential"                      401 UNAUTHORIZED -u "${LHB_GW_USER}:not-the-gateway-password" "$BE/accounts/ACC-1001"
 expect T10c "Partner token sent directly to backend"             401 UNAUTHORIZED -H "$(bearer "$TOK_PAYLANKA")" "$BE/accounts/ACC-1001"
+expect T10e "Direct call with valid Basic credential, no gateway JWT" 401 UNAUTHORIZED -u "${LHB_GW_USER}:${LHB_GW_PASS}" "$BE/accounts/ACC-1001"
+FAKE_JWT=$(TOK="$TOK_PAYLANKA" python3 -I -c "$TAMPER_PY" signature)   # gateway-shaped but not gateway-signed
+expect T10f "Direct call, Basic credential + forged assertion"    401 UNAUTHORIZED -u "${LHB_GW_USER}:${LHB_GW_PASS}" -H "X-JWT-Assertion: $FAKE_JWT" "$BE/accounts/ACC-1001"
+# Partner access tokens and backend assertions are signed by the same WSO2 key: the issuer/claim checks must stop this
+expect T10g "Direct call, Basic credential + partner ACCESS token"  401 UNAUTHORIZED -u "${LHB_GW_USER}:${LHB_GW_PASS}" -H "X-JWT-Assertion: $TOK_PAYLANKA" "$BE/accounts/ACC-1001"
 IP=$(ipconfig getifaddr en0 2>/dev/null || true)
 if [ -n "$IP" ]; then
   if curl -s -m 3 -o /dev/null "http://$IP:8080/actuator/health"; then

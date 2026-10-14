@@ -130,5 +130,14 @@ Message for the panel: the quota is enforced cluster-wide, eventually and within
 - `get-token.sh` now requests both scopes by default (`none` for no scope).
 - Open gap (closed in P9): QuickBudget can still read PayLanka's account ACC-1001. Scopes limit *operations*, not *which customer's data* (BOLA).
 
-## Backend JWT format observed
-*(filled in during P8)*
+## P8: Backend JWT (verified 2026-10-14)
+- The per-API `backEndJWT_v1` policy lists `supportedGateways: ["ChoreoConnect"]`, so it **cannot** be used on the regular (Synapse) gateway. Backend JWT was enabled globally with `[apim.jwt]` in `deployment.toml` (see `deployment.toml.patch`) and a restart.
+- Captured once from a real gateway call (a temporary access-log pattern, then deleted):
+  - Header `X-JWT-Assertion`, base64url, **RS256**, `x5t` = SHA-1 thumbprint of the `wso2carbon` certificate (CN=localhost, valid until 2028-06-06), plus `kid`.
+  - `iss` = `wso2.org/products/am`, **lifetime 900 s**, and **`exp`/`iat` are JSON strings**, not numbers.
+  - Claims: `http://wso2.org/claims/applicationUUId`, `applicationname`, `subscriber`, `keytype` (PRODUCTION), `apicontext`, `version`, `tier`, `enduser`, plus `scope` and `client_id`.
+- Signature independently verified with `openssl dgst -sha256 -verify` against the exported **public** certificate `banking-backend/src/main/resources/wso2-gateway.pem`.
+- The backend `GatewayJwtVerifier` (Nimbus 10.10) checks RS256, the signature, `iss`, `exp` (30 s skew), `keytype == PRODUCTION` and `applicationUUId`.
+  - ⚠️ Nimbus `getJWTClaimsSet()` rejects string-typed `exp`, so the verified payload is read as a JSON map. This was caught by unit tests that mirror the real format.
+- **Same signing key** for partner access tokens and backend assertions. An unmodified partner token passes the signature check and is rejected only by the `iss` check (T10g). Claim validation is essential.
+- Known limitation (stated to the panel): anyone holding the Basic credential **and** a captured assertion can replay it for up to 15 min. The real boundary is network isolation (loopback here; private subnet / mTLS in production).

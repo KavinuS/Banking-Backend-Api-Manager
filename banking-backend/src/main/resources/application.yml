@@ -37,6 +37,9 @@ lhb:
   gateway:
     username: ${LHB_GW_USER:}
     password: ${LHB_GW_PASS:}
+    jwt:
+      # Public signing certificate of the WSO2 gateway (X-JWT-Assertion, RS256).
+      certificate: classpath:wso2-gateway.pem
 
 logging:
   pattern:

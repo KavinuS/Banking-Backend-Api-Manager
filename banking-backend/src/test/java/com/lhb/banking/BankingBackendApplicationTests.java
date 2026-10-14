@@ -4,10 +4,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.net.URI;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -27,13 +29,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "lhb.gateway.password=test-password-0123456789"
 })
 @AutoConfigureMockMvc
+@Import(TestGateway.class)
 class BankingBackendApplicationTests {
 
     @Autowired
     MockMvc mvc;
 
+    private static final String PAYLANKA = TestGateway.assertion(TestGateway.PAYLANKA_APP_ID, "PayLanka Wallet");
+
+    /** Basic credential + valid gateway assertion for PayLanka Wallet. */
     private static MockHttpServletRequestBuilder asGateway(MockHttpServletRequestBuilder request) {
-        return request.with(httpBasic("test-gateway", "test-password-0123456789"));
+        return withAssertion(request, PAYLANKA);
+    }
+
+    private static MockHttpServletRequestBuilder withAssertion(MockHttpServletRequestBuilder request, String assertion) {
+        return request.with(httpBasic("test-gateway", "test-password-0123456789")).header("X-JWT-Assertion", assertion);
     }
 
     @Test
@@ -46,7 +56,66 @@ class BankingBackendApplicationTests {
 
     @Test
     void wrongCredentialIsRejected() throws Exception {
-        mvc.perform(get("/accounts/ACC-1001").with(httpBasic("test-gateway", "wrong-password-000000")))
+        mvc.perform(get("/accounts/ACC-1001").with(httpBasic("test-gateway", "wrong-password-000000"))
+                        .header("X-JWT-Assertion", PAYLANKA))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void basicCredentialWithoutAssertionIsRejected() throws Exception {
+        mvc.perform(get("/accounts/ACC-1001").with(httpBasic("test-gateway", "test-password-0123456789")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void assertionWithoutBasicCredentialIsRejected() throws Exception {
+        mvc.perform(get("/accounts/ACC-1001").header("X-JWT-Assertion", PAYLANKA))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void assertionSignedByAnotherKeyIsRejected() throws Exception {
+        String forged = TestGateway.sign(TestGateway.ATTACKER_KEYS, TestGateway.claims(TestGateway.PAYLANKA_APP_ID,
+                "PayLanka Wallet", "PRODUCTION", Instant.now().plusSeconds(900), "wso2.org/products/am"));
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), forged)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void assertionWithAlteredClaimsIsRejected() throws Exception {
+        String[] parts = PAYLANKA.split("\\.");
+        String otherClaims = TestGateway.assertion(TestGateway.QUICKBUDGET_APP_ID, "QuickBudget").split("\\.")[1];
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), parts[0] + "." + otherClaims + "." + parts[2]))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void expiredAssertionIsRejected() throws Exception {
+        String expired = TestGateway.sign(TestGateway.GATEWAY_KEYS, TestGateway.claims(TestGateway.PAYLANKA_APP_ID,
+                "PayLanka Wallet", "PRODUCTION", Instant.now().minusSeconds(120), "wso2.org/products/am"));
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), expired)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void sandboxAssertionIsRejected() throws Exception {
+        String sandbox = TestGateway.sign(TestGateway.GATEWAY_KEYS, TestGateway.claims(TestGateway.PAYLANKA_APP_ID,
+                "PayLanka Wallet", "SANDBOX", Instant.now().plusSeconds(900), "wso2.org/products/am"));
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), sandbox)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void wrongIssuerIsRejected() throws Exception {
+        String other = TestGateway.sign(TestGateway.GATEWAY_KEYS, TestGateway.claims(TestGateway.PAYLANKA_APP_ID,
+                "PayLanka Wallet", "PRODUCTION", Instant.now().plusSeconds(900), "someone-else"));
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), other)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unsignedAssertionIsRejected() throws Exception {
+        String[] parts = PAYLANKA.split("\\.");
+        String noneHeader = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"alg\":\"none\"}".getBytes());
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), noneHeader + "." + parts[1] + "."))
                 .andExpect(status().isUnauthorized());
     }
 
