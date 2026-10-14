@@ -118,6 +118,19 @@ else
 fi
 expect T13d "BOLA protection identical on v2"                   404 NOT_FOUND -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-1001"
 
+echo "== Gateway threat protection & CORS (B5)"
+expect T15a "SQL quote in query blocked at gateway"             400 400 -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001/transactions?limit=1%27%20OR%20%271%27=%271"
+expect T15b "'drop table' in query blocked at gateway"          400 400 -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001/transactions?x=drop%20table%20users"
+expect T15c "SQL quote in header blocked at gateway"            400 400 -H "$(bearer "$TOK_PAYLANKA")" -H "X-Note: it's" "$GW/accounts/ACC-1001"
+grep -q "SQL-Injection Threat detected" "$BODIES/T15a.json" || { echo "FAIL  T15a  not rejected by the regex policy"; FAIL=$((FAIL+1)); }
+cors_origin() { curl -sk -i -X OPTIONS -H "Origin: $1" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization" \
+  "$GW/accounts/ACC-1001" | tr -d '\r' | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}'; }
+if [ "$(cors_origin https://app.paylanka.example)" = "https://app.paylanka.example" ] && [ -z "$(cors_origin https://evil.example)" ]; then
+  printf "PASS  %-5s %-58s\n" T15d "CORS: partner origin allowed, unknown origin refused"; PASS=$((PASS+1))
+else
+  echo "FAIL  T15d  CORS policy not as configured"; FAIL=$((FAIL+1))
+fi
+
 echo "== Gateway bypass (direct to backend)"
 expect T10a "Direct call, no credential"                         401 UNAUTHORIZED "$BE/accounts/ACC-1001"
 expect T10b "Direct call, wrong credential"                      401 UNAUTHORIZED -u "${LHB_GW_USER}:not-the-gateway-password" "$BE/accounts/ACC-1001"

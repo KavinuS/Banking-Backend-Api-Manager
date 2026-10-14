@@ -159,3 +159,17 @@ Message for the panel: the quota is enforced cluster-wide, eventually and within
 - v1 → **Deprecated**: hidden from the Developer Portal, existing subscribers keep working (200, v1 contract unchanged), a new subscription to v1 is refused. WSO2 answers that with a generic **HTTP 500 / 900967**, not a 4xx; the portal UI hides deprecated APIs anyway.
 - Lifecycle history (Publisher API `/apis/{id}/lifecycle-history`): CREATED → PUBLISHED → DEPRECATED with user and timestamp, i.e. a governance audit trail.
 - Test suites now target v2 (`security-tests.sh`: 40 checks incl. T13a–d; `throttle-test.sh` on v2: 5×200 then 429).
+
+## P11: Threat protection & observability (verified 2026-10-14)
+- Operation policies usable on our **Synapse** gateway: addHeader, addLogMessage, jsonValidator, regexPolicy, opaPolicy, jwtClaimBasedAccessValidator, removeHeader, jsonFault, … (`backEndJWT_v1` is Choreo-Connect-only).
+- `scripts/setup-threat-protection.sh` attaches **`regexPolicy_v1`** (built-in SQL-injection regex over body, headers and path/query, no parameters) to both v2 operations, and sets API-level **CORS** to `https://app.paylanka.example`, GET/OPTIONS only (overrides the global `allow_origins = "*"`).
+  - Blocked at the gateway with **400 "SQL-Injection Threat detected in Query Parameters / HTTP Headers"**: quotes, `OR '1'='1`, `alter`, `drop table`, `select * from`, and a quote in any header. My hypothesis that the multi-line regex in the template breaks the later alternatives was **disproven**: they match.
+  - Trade-off: very broad patterns (`.*alter.*` also matches "alternative"; any apostrophe in a header is rejected). Fine for this narrow API, needs tuning for free-text APIs.
+  - CORS: allowed origin echoed; unknown origin gets an empty `Access-Control-Allow-Origin` (the browser refuses).
+  - Scopes stayed intact after this API update.
+- Observability:
+  - The partner's `X-Correlation-ID` is forwarded by the gateway and returned in the response; the gateway adds its own `activityid` header.
+  - `scripts/trace.sh <cid>`: backend access log → audit decision → recent gateway security events (WSO2 log).
+  - WSO2 logs worth showing: `wso2carbon.log` (APIAuthenticationHandler failures with appName, threat detections), `audit.log` (management actions, user names masked), `http_access_*.log`.
+  - No bearer tokens or JWTs found in any WSO2 log (grep check).
+  - Analytics dashboards (Choreo/ELK/Moesif) are **not** configured. Roadmap item, as planned.
