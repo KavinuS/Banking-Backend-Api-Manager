@@ -350,6 +350,15 @@ Step-by-step commands and checks for every phase: [EXECUTION_PLAN.md](EXECUTION_
 
 ## 12. Change log
 
+**As built (2026-10-14):** Stage A and Stage B are complete (tags `stage-a`, `stage-b`). Deviations from this plan, each verified and documented in `wso2/README.md`:
+- Tier is named **`LHBPartnerDemo`** (display name "LHB Partner Demo"), because WSO2 rejects `-` in policy names.
+- Backend JWT came from **`[apim.jwt]` in `deployment.toml`**. The per-API `backEndJWT_v1` policy is Choreo-Connect-only. No fallback header was needed.
+- Throttling needed the Traffic Manager endpoints **pinned to localhost**, because a network change silently disabled it. The quota is exact at steady rates and asynchronous for 1-second bursts.
+- T6 became an **entitlement** test: scopes are bound to roles, so QuickBudget cannot obtain `transactions:read`.
+- v2 publication **auto-subscribed** existing partners. Replacing an OpenAPI definition wipes scopes (the release script re-applies them).
+- **Not built:** subscription approval workflow (B7) and mTLS (B8), both optional; analytics dashboards (roadmap).
+- Panel package: `docs/demo-script.md`, `value-map.md`, `objection-handling.md`, `architecture.md`. One-command reset: `scripts/reset-demo.sh`.
+
 **v2 (2026-10-13):** revised after external review (scored 8.3/10, "proceed with revisions").
 - Staged into A (essential), B (advanced) and C (panel), with a feature freeze and snapshots.
 - Added §2 business value metrics and the discovery → demo mapping.

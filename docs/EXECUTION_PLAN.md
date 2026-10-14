@@ -451,6 +451,6 @@ Only start if you're ahead of schedule. Work from Snapshot #4 and restore if any
 - [x] P9 Account authorization + audit · Snapshot #3
 - [x] P10 Versioning
 - [x] P11 Threat protection + observability · Snapshot #4 · `stage-b` tag
-- [ ] P12 Optional extras
-- [ ] P13 Panel package
+- [ ] P12 Optional extras (not started: approval workflow, mTLS)
+- [x] P13 Panel package (deck itself still to build from these docs)
 - [ ] P14 Rehearsed, video recorded, frozen
