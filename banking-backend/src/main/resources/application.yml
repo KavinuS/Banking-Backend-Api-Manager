@@ -6,6 +6,15 @@ server:
   # Loopback only: the backend must never be reachable from the network, only via the local gateway.
   address: 127.0.0.1
   port: 8080
+  tomcat:
+    basedir: .
+    accesslog:
+      # One line per request that actually reached the backend (used to prove throttled calls never arrive).
+      enabled: true
+      directory: logs
+      prefix: access
+      buffered: false
+      pattern: '%t %a "%r" %s %b %{ms}T ms cid=%{X-Correlation-ID}o'
   error:
     include-stacktrace: never
     include-message: never

@@ -98,5 +98,27 @@ An RS256 signature is 342 base64url characters, and the low 4 bits of the last c
 ### Backend fix found by P5
 `/accounts/1%3BDROP` was rejected by Spring Security's firewall and forwarded to the secured `/error` page, which surfaced as a misleading 401 without a correlation ID. A `requestRejectedHandler` now returns 400 INVALID_REQUEST with a correlation ID (unit-tested).
 
+## P6: Throttling (verified 2026-10-14)
+- `scripts/setup-throttling.sh`: subscription policy **`LHBPartnerDemo`** (display name "LHB Partner Demo"), 5 requests/min, `stopOnQuotaReach`, burst control off. WSO2 **rejects `-` in policy names** (code 900706). Added to the API's business plans, then a new revision was deployed. QuickBudget is subscribed on it.
+- The Traffic Manager compiles it to `repository/deployment/server/executionplans/carbon.super_sub_LHBPartnerDemo.siddhiql` with `timeBatch(1 min, 0)` and `count >= 5`. **Windows reset on wall-clock minute boundaries.**
+- Throttled response: **429, code 900804 "Message throttled out"**, with the retry-after time in the description.
+- `scripts/throttle-test.sh` (1 req/s, 20 requests): `200×5 → 429×15` in 3/3 runs. The backend access log shows **exactly 5** requests reached the core. Access recovers in the next window.
+
+### ⚠️ Finding: throttling silently broke when the Mac changed network
+By default the gateway → Traffic Manager (9611/9711) and throttle-decision JMS (5672) connections use the **LAN IP detected at startup**. The Mac moved from `10.136.178.220` to `10.57.64.220` overnight. Every connection failed ("Cannot borrow client", JMS back-off up to 2560 s), and **no request was ever throttled**, although the API kept serving 200s.
+Fix: pinned these endpoints to `localhost` in `deployment.toml` (see `wso2/deployment.toml.patch`). **Demo-day relevance:** venue Wi-Fi would have caused the same silent failure.
+
+### Enforcement is asynchronous
+- The publisher connects lazily on the first request after a restart.
+- A 1-second burst of 15 requests was **never** throttled. The decision arrives after the burst has finished.
+- At 2 req/s, right after a sleep/wake, about 10 calls passed before the first 429 (~5 s latency).
+- At 1 req/s the 6th call was rejected every time.
+
+Message for the panel: the quota is enforced cluster-wide, eventually and within seconds. **Burst control** (enforced locally on the gateway) is the instant spike guard.
+
+### Other operational notes
+- Tomcat access log on the backend (`banking-backend/logs/access.*.log`, unbuffered, `%{ms}T`). In Tomcat 11, `%D` is microseconds.
+- The Mac went to sleep during a test: a 15-minute time jump, then 401s. **Demo day: run under `caffeinate -di`.**
+
 ## Backend JWT format observed
 *(filled in during P8)*

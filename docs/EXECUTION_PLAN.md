@@ -429,7 +429,7 @@ Only start if you're ahead of schedule. Work from Snapshot #4 and restore if any
 3. Rehearsal 2 using a *different* persona order.
 4. **Freeze 48 h before the panel:** no config or code changes. Bug fixes only if a test fails, and only from a snapshot.
 5. **Demo day:**
-   - Restart the Mac.
+   - Restart the Mac. Prevent sleep for the whole session: `caffeinate -di` in a spare terminal.
    - `reset-demo.sh` → READY.
    - Generate fresh tokens just before the security segment.
    - Do Not Disturb, 18pt fonts, and tabs pre-opened in order.
@@ -439,13 +439,13 @@ Only start if you're ahead of schedule. Work from Snapshot #4 and restore if any
 
 ## Phase checklist (copy into your tracker)
 
-- [ ] P0 Workspace
-- [ ] P1 WSO2 baseline · Snapshot #1
-- [ ] P2 Backend
-- [ ] P3 Published
-- [ ] P4 Onboarding (time measured: ____)
-- [ ] P5 Security suite green
-- [ ] P6 Throttling · Snapshot #2 · `stage-a` tag ← **minimum viable demo**
+- [x] P0 Workspace
+- [x] P1 WSO2 baseline · Snapshot #1
+- [x] P2 Backend
+- [x] P3 Published
+- [x] P4 Onboarding (API-driven: ~2 s; UI time to be measured in rehearsal: ____)
+- [x] P5 Security suite green (23 checks incl. slow expiry test)
+- [x] P6 Throttling · Snapshot #2 · `stage-a` tag ← **minimum viable demo**
 - [ ] P7 Scopes
 - [ ] P8 Backend JWT / fallback
 - [ ] P9 Account authorization + audit · Snapshot #3

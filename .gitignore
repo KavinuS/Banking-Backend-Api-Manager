@@ -9,3 +9,4 @@ banking-backend/*.log
 .idea/
 .vscode/
 .DS_Store
+banking-backend/logs/
