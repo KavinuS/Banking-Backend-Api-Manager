@@ -26,7 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "lhb.gateway.username=test-gateway",
-        "lhb.gateway.password=test-password-0123456789"
+        "lhb.gateway.password=test-password-0123456789",
+        "lhb.audit.file=target/audit-test.log"
 })
 @AutoConfigureMockMvc
 @Import(TestGateway.class)
@@ -117,6 +118,49 @@ class BankingBackendApplicationTests {
                 .encodeToString("{\"alg\":\"none\"}".getBytes());
         mvc.perform(withAssertion(get("/accounts/ACC-1001"), noneHeader + "." + parts[1] + "."))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private static final String QUICKBUDGET = TestGateway.assertion(TestGateway.QUICKBUDGET_APP_ID, "QuickBudget");
+
+    @Test
+    void partnerCanReadConsentedAccount() throws Exception {
+        mvc.perform(withAssertion(get("/accounts/ACC-2001"), QUICKBUDGET))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maskedAccountNumber").value("****2001"));
+    }
+
+    @Test
+    void crossPartnerAccessIsIndistinguishableFromUnknownAccount() throws Exception {
+        String bola = mvc.perform(withAssertion(get("/accounts/ACC-1001"), QUICKBUDGET))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        String unknown = mvc.perform(withAssertion(get("/accounts/ACC-9999"), QUICKBUDGET))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        // Same body apart from the correlation ID: a partner cannot probe which accounts exist
+        org.junit.jupiter.api.Assertions.assertEquals(
+                bola.replaceAll("\"correlationId\":\"[^\"]*\"", ""), unknown.replaceAll("\"correlationId\":\"[^\"]*\"", ""));
+    }
+
+    @Test
+    void crossPartnerTransactionAccessIsDenied() throws Exception {
+        mvc.perform(withAssertion(get("/accounts/ACC-2001/transactions"), PAYLANKA))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void unknownApplicationHasNoConsents() throws Exception {
+        String stranger = TestGateway.assertion("00000000-0000-0000-0000-000000000000", "Unregistered App");
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), stranger)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void backendReChecksScopeBehindTheGateway() throws Exception {
+        String accountsOnly = TestGateway.assertionWithScope(TestGateway.PAYLANKA_APP_ID, "PayLanka Wallet", "accounts:read");
+        mvc.perform(withAssertion(get("/accounts/ACC-1001"), accountsOnly)).andExpect(status().isOk());
+        mvc.perform(withAssertion(get("/accounts/ACC-1001/transactions"), accountsOnly))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

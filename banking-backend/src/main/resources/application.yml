@@ -41,6 +41,17 @@ lhb:
       # Public signing certificate of the WSO2 gateway (X-JWT-Assertion, RS256).
       certificate: classpath:wso2-gateway.pem
 
+  # POC consent registry (fictional partners). Keys are WSO2 application UUIDs, i.e. the verified
+  # http://wso2.org/claims/applicationUUId claim. They change only if the Developer Portal apps are recreated.
+  consents:
+    partners:
+      f2e228cd-5c1e-4e16-a1a9-cd4d71a82447:
+        name: PayLanka Wallet
+        accounts: [ACC-1001, ACC-1002]
+      8c6a3c36-8bd9-4a73-91b2-83484eeb5731:
+        name: QuickBudget
+        accounts: [ACC-2001]
+
 logging:
   pattern:
     level: "%5p [cid:%X{correlationId:-}]"

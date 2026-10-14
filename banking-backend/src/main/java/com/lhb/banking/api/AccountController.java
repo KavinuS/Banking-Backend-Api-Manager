@@ -1,5 +1,6 @@
 package com.lhb.banking.api;
 
+import com.lhb.banking.config.GatewayIdentity;
 import com.lhb.banking.model.Account;
 import com.lhb.banking.model.Transaction;
 import com.lhb.banking.service.AccountService;
@@ -10,6 +11,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,17 +32,19 @@ public class AccountController {
     }
 
     @GetMapping("/{accountId}")
-    public AccountSummary getAccount(@PathVariable @Pattern(regexp = ACCOUNT_ID_PATTERN) String accountId) {
-        return AccountSummary.from(accountService.getAccount(accountId));
+    public AccountSummary getAccount(@RequestAttribute(GatewayIdentity.REQUEST_ATTRIBUTE) GatewayIdentity caller,
+                                     @PathVariable @Pattern(regexp = ACCOUNT_ID_PATTERN) String accountId) {
+        return AccountSummary.from(accountService.getAccount(caller, accountId));
     }
 
     @GetMapping("/{accountId}/transactions")
     public TransactionPage getTransactions(
+            @RequestAttribute(GatewayIdentity.REQUEST_ATTRIBUTE) GatewayIdentity caller,
             @PathVariable @Pattern(regexp = ACCOUNT_ID_PATTERN) String accountId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
-        List<TransactionView> items = accountService.getTransactions(accountId, fromDate, toDate, limit).stream()
+        List<TransactionView> items = accountService.getTransactions(caller, accountId, fromDate, toDate, limit).stream()
                 .map(TransactionView::from)
                 .toList();
         return new TransactionPage(accountId, fromDate, toDate, items.size(), items);

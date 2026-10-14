@@ -38,6 +38,11 @@ public class TestGateway {
         return sign(GATEWAY_KEYS, claims(appId, appName, "PRODUCTION", Instant.now().plusSeconds(900), "wso2.org/products/am"));
     }
 
+    public static String assertionWithScope(String appId, String appName, String scope) {
+        return sign(GATEWAY_KEYS, claims(appId, appName, "PRODUCTION", Instant.now().plusSeconds(900), "wso2.org/products/am")
+                .claim("scope", scope));
+    }
+
     static JWTClaimsSet.Builder claims(String appId, String appName, String keyType, Instant exp, String issuer) {
         Instant iat = exp.minusSeconds(900);
         JWTClaimsSet.Builder b = new JWTClaimsSet.Builder().issuer(issuer)

@@ -446,9 +446,9 @@ Only start if you're ahead of schedule. Work from Snapshot #4 and restore if any
 - [x] P4 Onboarding (API-driven: ~2 s; UI time to be measured in rehearsal: ____)
 - [x] P5 Security suite green (23 checks incl. slow expiry test)
 - [x] P6 Throttling · Snapshot #2 · `stage-a` tag ← **minimum viable demo**
-- [ ] P7 Scopes
-- [ ] P8 Backend JWT / fallback
-- [ ] P9 Account authorization + audit · Snapshot #3
+- [x] P7 Scopes
+- [x] P8 Backend JWT (verified; no fallback needed)
+- [x] P9 Account authorization + audit · Snapshot #3
 - [ ] P10 Versioning
 - [ ] P11 Threat protection + observability · Snapshot #4 · `stage-b` tag
 - [ ] P12 Optional extras

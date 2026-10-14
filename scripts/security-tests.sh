@@ -28,6 +28,7 @@ bearer() { echo "Authorization: Bearer $1"; }
 
 TOK_PAYLANKA=$("$ROOT/scripts/get-token.sh" PAYLANKA) || { echo "cannot get PayLanka token" >&2; exit 2; }
 TOK_ROGUE=$("$ROOT/scripts/get-token.sh" ROGUEAPP)   || { echo "cannot get RogueApp token" >&2; exit 2; }
+TOK_QB=$("$ROOT/scripts/get-token.sh" QUICKBUDGET)   || exit 2   # asks for both scopes; bank grants accounts:read only
 # Tampered tokens. Never alter the LAST signature character: its low 4 bits are base64url padding, so some
 # substitutions (e.g. A->B) decode to the identical signature and the token is still genuinely valid.
 TAMPER_PY='
@@ -63,10 +64,27 @@ jq -e '.maskedAccountNumber == "****1001" and (has("accountNumber") | not)' "$BO
 expect T7c "Subscribed app -> transactions"                      200 - -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001/transactions?limit=5"
 expect T12 "App with keys but NO subscription (RogueApp)"        403 900908 -H "$(bearer "$TOK_ROGUE")" "$GW/accounts/ACC-1001"
 
+echo "== Account-level authorization / BOLA (B3)"
+AUDIT_LOG="$ROOT/banking-backend/logs/audit.log"
+BOLA_CID="bola-$(date +%s)"
+expect T7b "QuickBudget -> its consented account ACC-2001"       200 - -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-2001"
+expect T8a "QuickBudget -> PayLanka's ACC-1001 (BOLA attempt)"   404 NOT_FOUND -H "$(bearer "$TOK_QB")" -H "X-Correlation-ID: $BOLA_CID" "$GW/accounts/ACC-1001"
+expect T8b "PayLanka -> QuickBudget's ACC-2001 transactions"     404 NOT_FOUND -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-2001/transactions"
+if jq -s -e --arg c "$BOLA_CID" 'map(select(.correlationId==$c and .outcome=="DENIED_NO_CONSENT" and .application=="QuickBudget")) | length == 1' "$AUDIT_LOG" >/dev/null 2>&1; then
+  printf "PASS  %-5s %-58s %s\n" T8c "BOLA attempt recorded in audit log (correlation ID)" "DENIED_NO_CONSENT"; PASS=$((PASS+1))
+else
+  echo "FAIL  T8c   no DENIED_NO_CONSENT audit entry for $BOLA_CID"; FAIL=$((FAIL+1))
+fi
+expect T8e "QuickBudget -> non-existent ACC-9999"                404 NOT_FOUND -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-9999"
+if diff <(jq -S 'del(.correlationId)' "$BODIES/T8a.json") <(jq -S 'del(.correlationId)' "$BODIES/T8e.json") >/dev/null 2>&1; then
+  printf "PASS  %-5s %-58s\n" T8d "Denied account response identical to unknown account"; PASS=$((PASS+1))
+else
+  echo "FAIL  T8d   BOLA 404 body differs from unknown-account 404"; FAIL=$((FAIL+1))
+fi
+
 echo "== Scopes / entitlements (B1)"
 TOK_ACC_ONLY=$("$ROOT/scripts/get-token.sh" PAYLANKA "accounts:read")
 TOK_NOSCOPE=$("$ROOT/scripts/get-token.sh" PAYLANKA none)
-TOK_QB=$("$ROOT/scripts/get-token.sh" QUICKBUDGET)   # asks for both; bank grants accounts:read only
 expect T6a "Token with accounts:read only -> transactions"      403 900910 -H "$(bearer "$TOK_ACC_ONLY")" "$GW/accounts/ACC-1001/transactions"
 expect T6b "Token with no API scope -> account"                 403 900910 -H "$(bearer "$TOK_NOSCOPE")" "$GW/accounts/ACC-1001"
 expect T6c "QuickBudget (not entitled) -> transactions"         403 900910 -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-2001/transactions"

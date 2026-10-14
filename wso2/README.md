@@ -141,3 +141,13 @@ Message for the panel: the quota is enforced cluster-wide, eventually and within
   - ⚠️ Nimbus `getJWTClaimsSet()` rejects string-typed `exp`, so the verified payload is read as a JSON map. This was caught by unit tests that mirror the real format.
 - **Same signing key** for partner access tokens and backend assertions. An unmodified partner token passes the signature check and is rejected only by the `iss` check (T10g). Claim validation is essential.
 - Known limitation (stated to the panel): anyone holding the Basic credential **and** a captured assertion can replay it for up to 15 min. The real boundary is network isolation (loopback here; private subnet / mTLS in production).
+
+## P9: Account-level authorization & audit (verified 2026-10-14)
+- Backend consent registry (`lhb.consents.partners` in `application.yml`) keyed on the **verified** `applicationUUId`:
+  - PayLanka Wallet `f2e228cd-…` → ACC-1001, ACC-1002
+  - QuickBudget `8c6a3c36-…` → ACC-2001
+  - ⚠️ These UUIDs change if the Developer Portal apps are recreated. Restore from a snapshot instead.
+- The backend also re-checks the scope from the assertion (403 FORBIDDEN), defence in depth behind the gateway.
+- A cross-partner request returns **404 NOT_FOUND, byte-identical (apart from correlationId) to a non-existent account**, so partners can't enumerate accounts.
+- Audit trail `banking-backend/logs/audit.log`, one JSON line per decision: ts, correlationId, applicationId, application, operation, accountId, outcome (`ALLOWED` / `DENIED_NO_CONSENT` / `DENIED_SCOPE` / `NOT_FOUND`). No tokens, no full account numbers. Unit tests write to `target/audit-test.log`.
+- Live suite: T7b, T8a–T8e. The BOLA attempt is found in the audit log by the correlation ID the caller sent.
