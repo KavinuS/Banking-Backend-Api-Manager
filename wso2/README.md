@@ -151,3 +151,11 @@ Message for the panel: the quota is enforced cluster-wide, eventually and within
 - A cross-partner request returns **404 NOT_FOUND, byte-identical (apart from correlationId) to a non-existent account**, so partners can't enumerate accounts.
 - Audit trail `banking-backend/logs/audit.log`, one JSON line per decision: ts, correlationId, applicationId, application, operation, accountId, outcome (`ALLOWED` / `DENIED_NO_CONSENT` / `DENIED_SCOPE` / `NOT_FOUND`). No tokens, no full account numbers. Unit tests write to `target/audit-test.log`.
 - Live suite: T7b, T8a–T8e. The BOLA attempt is found in the audit log by the correlation ID the caller sent.
+
+## P10: Versioning & lifecycle (verified 2026-10-14)
+- `scripts/release-v2.sh`: Publisher `copy-api` v1 → **v2** (context `/lhb/accounts`, gateway URL `/lhb/accounts/v2/...`), definition replaced with `lhb-accounts-v2.yaml`, backend endpoint `http://127.0.0.1:8080/v2` (new `AccountControllerV2`, same service: authorization, consent and audit are identical).
+- ⚠️ **Replacing the OpenAPI definition wiped all per-operation scopes** (and the API's local scopes). v2 would have shipped with no scope enforcement. The script re-applies scopes after every definition update, and test T6/T13d cover it.
+- **Publishing v2 auto-subscribed existing v1 subscribers**, with tiers preserved (QuickBudget stays on LHBPartnerDemo). Repeat subscribe → 409. The bank can force re-subscription with the "Requires re-subscription" option at publish time.
+- v1 → **Deprecated**: hidden from the Developer Portal, existing subscribers keep working (200, v1 contract unchanged), a new subscription to v1 is refused. WSO2 answers that with a generic **HTTP 500 / 900967**, not a 4xx; the portal UI hides deprecated APIs anyway.
+- Lifecycle history (Publisher API `/apis/{id}/lifecycle-history`): CREATED → PUBLISHED → DEPRECATED with user and timestamp, i.e. a governance audit trail.
+- Test suites now target v2 (`security-tests.sh`: 40 checks incl. T13a–d; `throttle-test.sh` on v2: 5×200 then 429).

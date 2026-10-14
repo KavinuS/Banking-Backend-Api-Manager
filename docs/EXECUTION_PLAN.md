@@ -449,7 +449,7 @@ Only start if you're ahead of schedule. Work from Snapshot #4 and restore if any
 - [x] P7 Scopes
 - [x] P8 Backend JWT (verified; no fallback needed)
 - [x] P9 Account authorization + audit · Snapshot #3
-- [ ] P10 Versioning
+- [x] P10 Versioning
 - [ ] P11 Threat protection + observability · Snapshot #4 · `stage-b` tag
 - [ ] P12 Optional extras
 - [ ] P13 Panel package

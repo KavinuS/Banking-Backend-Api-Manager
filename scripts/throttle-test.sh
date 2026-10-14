@@ -11,7 +11,7 @@ set -uo pipefail
 source ~/.lhb-poc.env
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 N=${1:-20}; RECOVERY=true; [ "${2:-}" = "--no-recovery" ] && RECOVERY=false
-URL=https://localhost:8243/lhb/accounts/v1/accounts/ACC-2001
+URL=https://localhost:8243/lhb/accounts/v2/accounts/ACC-2001
 ACCESS_LOG="$ROOT/banking-backend/logs/access.$(date +%Y-%m-%d).log"
 RUN_ID="thr-$(date +%s)"
 

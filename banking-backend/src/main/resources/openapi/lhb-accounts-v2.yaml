@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: LHB-Accounts
+  version: v2
+  description: |
+    Lanka Horizon Bank partner API for account information and transaction history.
+    v2 adds availableBalance to the account summary. v1 is deprecated.
+    All data is fictional (POC). Access requires an OAuth2 access token issued to a
+    subscribed partner application. Account numbers are always masked.
+  contact:
+    name: LHB API Platform Team (fictional)
+servers:
+  - url: http://127.0.0.1:8080/v2
+    description: Mock core banking backend (reachable only through the API gateway)
+tags:
+  - name: accounts
+    description: Account information
+  - name: transactions
+    description: Transaction history
+paths:
+  /accounts/{accountId}:
+    get:
+      tags: [accounts]
+      operationId: getAccount
+      summary: Get an account summary
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Account summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummary'
+              example:
+                accountId: ACC-1001
+                maskedAccountNumber: '****1001'
+                type: SAVINGS
+                currency: LKR
+                balance: 254300.50
+                availableBalance: 249300.50
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /accounts/{accountId}/transactions:
+    get:
+      tags: [transactions]
+      operationId: getTransactions
+      summary: List transactions for an account (newest first)
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: fromDate
+          in: query
+          required: false
+          description: Inclusive start date (ISO-8601)
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          required: false
+          description: Inclusive end date (ISO-8601). Must not be before fromDate.
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Transaction page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Bank-issued account identifier
+      schema:
+        type: string
+        pattern: '^ACC-\d{4}$'
+        example: ACC-1001
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Optional caller-supplied ID (8-64 chars, letters, digits, hyphen) echoed in responses and logs
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9-]{8,64}$'
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Account not found or not accessible to this application
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    AccountSummary:
+      type: object
+      required: [accountId, maskedAccountNumber, type, currency, balance, availableBalance]
+      properties:
+        accountId:
+          type: string
+        maskedAccountNumber:
+          type: string
+          description: Only the last four digits are revealed
+        type:
+          type: string
+          enum: [SAVINGS, CURRENT]
+        currency:
+          type: string
+          example: LKR
+        balance:
+          type: number
+          format: double
+          description: Ledger balance
+        availableBalance:
+          type: number
+          format: double
+          description: Funds available after holds and pending debits (new in v2)
+    Transaction:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        bookingDate:
+          type: string
+          format: date
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+        direction:
+          type: string
+          enum: [CREDIT, DEBIT]
+        currency:
+          type: string
+    TransactionPage:
+      type: object
+      properties:
+        accountId:
+          type: string
+        fromDate:
+          type: string
+          format: date
+          nullable: true
+        toDate:
+          type: string
+          format: date
+          nullable: true
+        count:
+          type: integer
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        message:
+          type: string
+        correlationId:
+          type: string

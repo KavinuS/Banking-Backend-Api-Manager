@@ -164,6 +164,18 @@ class BankingBackendApplicationTests {
     }
 
     @Test
+    void v2AddsAvailableBalanceAndKeepsAuthorization() throws Exception {
+        mvc.perform(asGateway(get("/v2/accounts/ACC-1001")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maskedAccountNumber").value("****1001"))
+                .andExpect(jsonPath("$.availableBalance").value(249300.50));
+        mvc.perform(withAssertion(get("/v2/accounts/ACC-1001"), QUICKBUDGET)).andExpect(status().isNotFound());
+        mvc.perform(asGateway(get("/v2/accounts/ACC-1001/transactions").param("limit", "2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(2));
+    }
+
+    @Test
     void accountIsReturnedMasked() throws Exception {
         mvc.perform(asGateway(get("/accounts/ACC-1001")))
                 .andExpect(status().isOk())

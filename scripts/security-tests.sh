@@ -5,7 +5,8 @@
 set -uo pipefail
 source ~/.lhb-poc.env
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-GW=https://localhost:8243/lhb/accounts/v1
+GW=https://localhost:8243/lhb/accounts/v2        # current version (v1 is deprecated, see T13)
+GW_V1=https://localhost:8243/lhb/accounts/v1
 BE=http://127.0.0.1:8080
 SLOW=false; [ "${1:-}" = "--slow" ] && SLOW=true
 PASS=0; FAIL=0
@@ -48,8 +49,8 @@ TOK_BADSIG=$(TOK="$TOK_PAYLANKA" python3 -I -c "$TAMPER_PY" signature)
 echo "== Discovery & onboarding"
 expect T1  "API listed in Developer Portal (anonymous browse)"  200 - \
   "https://localhost:9443/api/am/devportal/v3/apis?query=name:LHB-Accounts"
-jq -e '.list[] | select(.name=="LHB-Accounts" and .version=="v1" and .lifeCycleStatus=="PUBLISHED")' "$BODIES/T1.json" >/dev/null \
-  || { echo "FAIL  T1    LHB-Accounts v1 not PUBLISHED in listing"; FAIL=$((FAIL+1)); }
+jq -e '.list[] | select(.name=="LHB-Accounts" and .version=="v2" and .lifeCycleStatus=="PUBLISHED")' "$BODIES/T1.json" >/dev/null \
+  || { echo "FAIL  T1    LHB-Accounts v2 not PUBLISHED in listing"; FAIL=$((FAIL+1)); }
 
 echo "== Authentication (gateway)"
 expect T3  "No token -> rejected"                                401 900902 "$GW/accounts/ACC-1001"
@@ -103,7 +104,19 @@ expect T9d "fromDate after toDate"                               400 INVALID_REQ
 expect T9e "Unknown account -> 404 (no enumeration detail)"      404 NOT_FOUND -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-9999"
 expect T9f "Undeclared method (POST) blocked at gateway"         405 - -X POST -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001"
 expect T9g "Undeclared resource blocked at gateway"              404 - -H "$(bearer "$TOK_PAYLANKA")" "$GW/admin/users"
-expect T9h "Plain HTTP (8280) refused - HTTPS only"              403 - "http://localhost:8280/lhb/accounts/v1/accounts/ACC-1001"
+expect T9h "Plain HTTP (8280) refused - HTTPS only"              403 - "http://localhost:8280/lhb/accounts/v2/accounts/ACC-1001"
+
+echo "== Versioning & lifecycle (B4)"
+expect T13a "v2 returns new field availableBalance"             200 - -H "$(bearer "$TOK_PAYLANKA")" "$GW/accounts/ACC-1001"
+jq -e 'has("availableBalance")' "$BODIES/T13a.json" >/dev/null || { echo "FAIL  T13a  availableBalance missing on v2"; FAIL=$((FAIL+1)); }
+expect T13b "Deprecated v1 still serves existing subscriber"    200 - -H "$(bearer "$TOK_PAYLANKA")" "$GW_V1/accounts/ACC-1001"
+jq -e 'has("availableBalance") | not' "$BODIES/T13b.json" >/dev/null || { echo "FAIL  T13b  v1 contract changed"; FAIL=$((FAIL+1)); }
+if jq -e '[.list[] | select(.name=="LHB-Accounts" and .version=="v1")] | length == 0' "$BODIES/T1.json" >/dev/null; then
+  printf "PASS  %-5s %-58s\n" T13c "Deprecated v1 hidden from Developer Portal"; PASS=$((PASS+1))
+else
+  echo "FAIL  T13c  v1 still listed in Developer Portal"; FAIL=$((FAIL+1))
+fi
+expect T13d "BOLA protection identical on v2"                   404 NOT_FOUND -H "$(bearer "$TOK_QB")" "$GW/accounts/ACC-1001"
 
 echo "== Gateway bypass (direct to backend)"
 expect T10a "Direct call, no credential"                         401 UNAUTHORIZED "$BE/accounts/ACC-1001"
